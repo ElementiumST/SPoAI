@@ -1,0 +1,4 @@
+name: StarkPluginOnAI
+version: ${project.version}
+main: com.example.Example
+api-version: 1.13

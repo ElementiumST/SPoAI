@@ -1,0 +1,8 @@
+<component name="ArtifactManager">
+  <artifact type="jar" name="SPoAI:jar">
+    <output-path>$USER_HOME$/OneDrive/Рабочий стол/another server/plugins/update</output-path>
+    <root id="archive" name="SPoAI.jar">
+      <element id="module-output" name="SPoAI" />
+    </root>
+  </artifact>
+</component>
