@@ -1,18 +1,21 @@
 package com.example;
 
-import org.bukkit.Bukkit;
 import org.bukkit.Material;
-import org.bukkit.entity.*;
+import org.bukkit.World;
+import org.bukkit.entity.Entity;
+import org.bukkit.entity.EntityType;
+import org.bukkit.entity.Player;
+import org.bukkit.entity.Skeleton;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.*;
+import org.bukkit.event.player.AsyncPlayerChatEvent;
+import org.bukkit.event.player.PlayerChatEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
+import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.metadata.MetadataValue;
-import org.bukkit.plugin.Plugin;
 import org.bukkit.plugin.java.JavaPlugin;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Objects;
 
 public final class Example extends JavaPlugin implements Listener {
@@ -23,12 +26,27 @@ public final class Example extends JavaPlugin implements Listener {
     public void onEnable() {
         plugin=this;
         getServer().getPluginManager().registerEvents(this, this);
+        getServer().getScheduler().scheduleSyncRepeatingTask(this, new Runnable() {
+            @Override
+            public void run() {
+                    for(World world :getServer().getWorlds())
+                        for(Entity e : world.getEntities()) {
+                            if(e.hasMetadata(SummonUnitStatus.SLAVE)) {
 
+                            }
+                        }
+
+            }
+        }, 10L, 10L);
 
     }
 
+    /**
+     * Обрабатывает попытку слуги выстрела по мастеру
+     * @param e Событие взаимодействия слуги с луком
+     */
     @EventHandler
-    public void onSlaveShot(EntityShootBowEvent e) {
+    public void onSlaveShotTry(EntityShootBowEvent e) {
         if(e.getEntity().hasMetadata(SummonUnitStatus.SLAVE)) {
             if(e.getEntity().getType().equals(EntityType.SKELETON)){
                 Skeleton slave = (Skeleton) e.getEntity();
@@ -37,20 +55,51 @@ public final class Example extends JavaPlugin implements Listener {
                 if (Objects.equals(slave.getTarget(), slaveMetadata.getMaster())) {
                     e.setCancelled(true);
                 }
-
             }
         }
-
     }
+
+    /**
+     * Обрабатывает событие атаки мастера по сущности
+     * @param e Событие нанесения урона
+     */
     @EventHandler
     public void onMasterAttack(EntityDamageByEntityEvent e) {
         if(e.getDamager().hasMetadata(SummonUnitStatus.MASTER)) {
             MasterMetaDataValue value =
                     (MasterMetaDataValue) e.getDamager().getMetadata(SummonUnitStatus.MASTER).get(0);
-            value.grandOrderForSlaves(Order.ATTACK, new Object[] {e.getEntity()});
+            value.grandOrderForSlaves(Order.ATTACK, e.getEntity());
         }
     }
 
+    @EventHandler
+    public void onPlayerLeft(PlayerQuitEvent e) {
+        if(e.getPlayer().hasMetadata(SummonUnitStatus.MASTER)) {
+
+        }
+    }
+    /**
+     *
+     * @param e
+     */
+    @EventHandler
+    public void SlaveFriendlyFire(EntityDamageByEntityEvent e) {
+        if(e.getEntity().hasMetadata(SummonUnitStatus.SLAVE) && e.getDamager().hasMetadata(SummonUnitStatus.SLAVE)){
+            SkeletonSlaveMetaDataValue value1 =
+                    (SkeletonSlaveMetaDataValue) e.getDamager().getMetadata(SummonUnitStatus.SLAVE).get(0);
+            SkeletonSlaveMetaDataValue value2 =
+                    (SkeletonSlaveMetaDataValue) e.getEntity().getMetadata(SummonUnitStatus.SLAVE).get(0);
+            if(value1.getMaster().getDisplayName().equals(value2.getMaster().getDisplayName())) {
+
+                e.setCancelled(true);
+            }
+        }
+    }
+
+    /**
+     * Обрабатывает гибель слуги, вызывает соответствующую функцию в кслассе обьекта слуги
+     * @param e Событие гибели слуги
+     */
     @EventHandler
     public void onSlaveDeath(EntityDeathEvent e) {
         if(e.getEntity().hasMetadata(SummonUnitStatus.SLAVE)) {
@@ -71,40 +120,41 @@ public final class Example extends JavaPlugin implements Listener {
             }
         }
     }
+
     @EventHandler
-    public void slaveLostTarget(EntityTargetEvent e) {
+    public void creeperExplosion(ExplosionPrimeEvent e){
+
+    }
+    /**
+     * Событие, обрабатывающее
+     * @param e
+     */
+    @EventHandler
+    public void slaveGetTarget(EntityTargetLivingEntityEvent e) {
         if(e.getEntity().hasMetadata(SummonUnitStatus.SLAVE)) {
-            if(e.getEntityType().equals(EntityType.SKELETON)){
-                SkeletonSlaveMetaDataValue slave =
-                        (SkeletonSlaveMetaDataValue) e.getEntity().getMetadata(SummonUnitStatus.SLAVE).get(0);
-                ((Skeleton) e.getEntity()).setTarget(slave.getMaster());
-            }
+            if(e.getTarget() != null)
+                if(e.getTarget().hasMetadata(SummonUnitStatus.SLAVE))
+                    e.setCancelled(true);
+
         }
     }
 
 
     @EventHandler
-    public void BoneUsed(PlayerInteractEvent e) {
-
-        if(e.getItem() == null) {
-            return;
-        }
-        // Bukkit.getServer().getConsoleSender().sendMessage("FuckThisShit");
-        if(e.getItem().getType().equals(Material.BOW)){
+    public void onPlayerSay(PlayerChatEvent e) {
+        if(e.getMessage().equals("ss")) {
             SkeletonSlaveMetaDataValue unit = new SkeletonSlaveMetaDataValue(e.getPlayer());
             unit.call(new SummonUnitStatus.OnSummonActionCompleteListener() {
                 @Override
                 public void onSuccess(String message) {
                     e.getPlayer().sendMessage(message);
                 }
+
                 @Override
                 public void onFail(String message) {
                     e.getPlayer().sendMessage(message);
                 }
             });
-            if(!e.getPlayer().hasMetadata(SummonUnitStatus.MASTER))
-                e.getPlayer().setMetadata(SummonUnitStatus.MASTER, unit);
-            else {((MasterMetaDataValue)e.getPlayer().getMetadata(SummonUnitStatus.MASTER)).addSlave(unit.getSlave());}
         }
     }
 
@@ -112,225 +162,4 @@ public final class Example extends JavaPlugin implements Listener {
     public void onDisable() {
         // Plugin shutdown logic
     }
-    public static class MasterMetaDataValue implements MetadataValue{
-
-        public static final String IS_SLAVE = "isSlave";
-        private Player master;
-        private List<Entity> slaves;
-
-        public MasterMetaDataValue(Player master, List<Entity> slaves) {
-            this.master = master;
-            this.slaves = slaves;
-        }
-        public void addSlave(Entity slave) {
-            slaves.add(slave);
-        }
-        public void grandOrderForSlaves(Order order, Object[] args) {
-            for(Entity entity : slaves){
-                SummonUnitStatus slave = (SummonUnitStatus) entity.getMetadata(SummonUnitStatus.SLAVE).get(0);
-                slave.executeOrder(order, args);
-            }
-        }
-
-        public List<Entity> getSlaves() {
-            return slaves;
-        }
-
-        @Override
-        public Object value() {
-            return null;
-        }
-
-        @Override
-        public int asInt() {
-            return 0;
-        }
-
-        @Override
-        public float asFloat() {
-            return 0;
-        }
-
-        @Override
-        public double asDouble() {
-            return 0;
-        }
-
-        @Override
-        public long asLong() {
-            return 0;
-        }
-
-        @Override
-        public short asShort() {
-            return 0;
-        }
-
-        @Override
-        public byte asByte() {
-            return 0;
-        }
-
-        @Override
-        public boolean asBoolean() {
-            return false;
-        }
-
-        @Override
-        public String asString() {
-            return null;
-        }
-
-        @Override
-        public Plugin getOwningPlugin() {
-            return JavaPlugin.getProvidingPlugin(Example.class);
-        }
-
-        @Override
-        public void invalidate() {
-
-        }
-
-        public Player getMaster() {
-            return master;
-        }
-    }
-    public static class SkeletonSlaveMetaDataValue implements SummonUnitStatus {
-        private Player master;
-        private Skeleton slave = null;
-        private boolean isSummoned = false;
-
-        public SkeletonSlaveMetaDataValue(Player master) {
-            this.master = master;
-        }
-
-        @Override
-        public void call(OnSummonActionCompleteListener onSummonActionCompleteListener) {
-            slave = (Skeleton) Objects.requireNonNull(master.getLocation().getWorld())
-                    .spawnEntity(master.getLocation(), EntityType.SKELETON);
-            slave.setMetadata(SummonUnitStatus.SLAVE, this);
-
-            List<MetadataValue> masterMetaDataValueList =
-                     master.getMetadata(SummonUnitStatus.MASTER);
-            if(masterMetaDataValueList.size() < 1)
-                master.setMetadata(SummonUnitStatus.MASTER, new MasterMetaDataValue(master, new ArrayList<Entity>()));
-            ((MasterMetaDataValue)master.getMetadata(SummonUnitStatus.MASTER).get(0)).addSlave(slave);
-
-            for (MetadataValue val: slave.getMetadata(SummonUnitStatus.SLAVE)
-                 ) {
-                Bukkit.getServer().getConsoleSender().sendMessage(val.asString());
-            }
-            slave.setTarget(master);
-
-            slave.setCustomName("Skeleton-slave (master :"+master.getDisplayName()+")");
-            isSummoned = true;
-            onSummonActionCompleteListener.onSuccess("You summoned skeleton");
-            Bukkit.getServer().getConsoleSender().sendMessage("FuckThisShit");
-        }
-
-        @Override
-        public void remove(OnSummonActionCompleteListener onSummonActionCompleteListener) {
-            this.invalidate();
-            master.sendMessage("skeleton is lost");
-        }
-
-        @Override
-        public boolean unCall(OnSummonActionCompleteListener onSummonActionCompleteListener) {
-            return false;
-        }
-
-        @Override
-        public void onSlaveDeath() {
-
-        }
-
-        @Override
-        public void onMasterDeath() {
-
-        }
-
-        @Override
-        public void executeOrder(Order order, Object[] args) {
-            switch (order) {
-                case ATTACK:
-                    slave.setTarget((LivingEntity) args[0]);
-                    break;
-            }
-        }
-
-        @Override
-        public Object value() {
-            return this;
-        }
-        @Override
-        public int asInt() {
-            return 0;
-        }
-        @Override
-        public float asFloat() {
-            return 0;
-        }
-        @Override
-        public double asDouble() {
-            return 0;
-        }
-        @Override
-        public long asLong() {
-            return 0;
-        }
-        @Override
-        public short asShort() {
-            return 0;
-        }
-        @Override
-        public byte asByte() {
-            return 0;
-        }
-        @Override
-        public boolean asBoolean() {
-            return false;
-        }
-        @Override
-        public String asString() {
-            if(slave == null)
-                return null;
-            return slave.toString();
-        }
-        @Override
-        public Plugin getOwningPlugin() {
-            return JavaPlugin.getProvidingPlugin(Example.class);
-        }
-        @Override
-        public void invalidate() {
-            if(slave != null) slave.remove();
-        }
-
-        public Player getMaster() {
-            return master;
-        }
-
-        public Skeleton getSlave() {
-            return slave;
-        }
-    }
-    public interface SummonUnitStatus extends MetadataValue {
-        String SLAVE = "isSlave";
-        String MASTER = "isMaster";
-
-        void call(OnSummonActionCompleteListener onSummonActionCompleteListener);
-        void remove(OnSummonActionCompleteListener onSummonActionCompleteListener);
-        boolean unCall(OnSummonActionCompleteListener onSummonActionCompleteListener);
-        void onSlaveDeath();
-        void onMasterDeath();
-        void executeOrder(Order order, Object[] args);
-
-        interface OnSummonActionCompleteListener {
-            void onSuccess(String message);
-            void onFail(String message);
-        }
-    }
-    enum Order {
-        ATTACK
-    }
-
 }
